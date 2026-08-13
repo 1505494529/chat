@@ -9,6 +9,7 @@ const attachButton = document.querySelector("#attachButton");
 const fileInput = document.querySelector("#fileInput");
 const attachmentPreview = document.querySelector("#attachmentPreview");
 const composerWrap = document.querySelector(".composer-wrap");
+const dropOverlay = document.querySelector("#dropOverlay");
 const messages = document.querySelector("#messages");
 const myNickname = document.querySelector("#myNickname");
 const myAvatar = document.querySelector("#myAvatar");
@@ -33,6 +34,7 @@ let pendingFiles = [];
 let toastTimer;
 let heartbeatTimer;
 let reconnectTimer;
+let dragDepth = 0;
 
 function pickColor(value) {
   const colors = ["#7168ed", "#e27e9a", "#4da8b4", "#d6915b", "#8b70c6", "#4fa778"];
@@ -104,6 +106,7 @@ function renderMessage(message) {
   const mine = message.sessionId === deviceId;
   const row = document.createElement("article");
   row.className = `message-row${mine ? " mine" : ""}`;
+  row.dataset.messageId = message.id;
 
   const avatar = document.createElement("div");
   avatar.className = "avatar message-avatar";
@@ -115,9 +118,37 @@ function renderMessage(message) {
   const meta = document.createElement("div");
   meta.className = "message-meta";
   meta.innerHTML = `<strong>${escapeHtml(message.nickname)}</strong><time>${formatTime(message.createdAt)}</time>`;
-  stack.append(meta, messageBody(message));
+  const bubbleWrap = document.createElement("div");
+  bubbleWrap.className = "bubble-wrap";
+  bubbleWrap.append(messageBody(message));
+  if (mine) {
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "delete-message";
+    deleteButton.type = "button";
+    deleteButton.textContent = "删除";
+    deleteButton.title = "删除这条消息";
+    deleteButton.addEventListener("click", () => deleteMessage(message.id));
+    bubbleWrap.append(deleteButton);
+  }
+  stack.append(meta, bubbleWrap);
   row.append(avatar, stack);
   messages.append(row);
+}
+
+function deleteMessage(messageId) {
+  if (!window.confirm("删除这条消息？删除后所有设备都将看不到它。")) return;
+  send({ type: "delete", messageId });
+}
+
+function showDropOverlay() {
+  dropOverlay?.classList.add("visible");
+  document.body.classList.add("dragging-files");
+}
+
+function hideDropOverlay() {
+  dragDepth = 0;
+  dropOverlay?.classList.remove("visible");
+  document.body.classList.remove("dragging-files");
 }
 
 function messageBody(message) {
@@ -181,7 +212,7 @@ function updateProfile() {
 }
 
 function applyTheme(theme) {
-  const themes = ["light", "dark", "cream", "mint", "ocean", "rose", "sunset", "mono", "lavender"];
+  const themes = ["light", "dark", "cream", "mint", "ocean", "rose", "sunset", "mono", "lavender", "cyberpunk", "pixel", "glass", "cinematic", "arcade", "terminal", "brutalist", "aurora", "vaporwave", "blueprint"];
   const selected = themes.includes(theme) ? theme : "light";
   document.documentElement.dataset.theme = selected;
   localStorage.setItem("chat-theme", selected);
@@ -215,6 +246,10 @@ function connect() {
     if (payload.type === "message") {
       renderMessage(payload.message);
       scrollToBottom();
+    }
+    if (payload.type === "deleted") {
+      document.querySelector(`[data-message-id="${CSS.escape(payload.messageId)}"]`)?.remove();
+      if (!messages.querySelector(".message-row")) renderEmptyState();
     }
     if (payload.type === "error") showToast(payload.message);
   });
@@ -326,9 +361,29 @@ messageInput.addEventListener("keydown", (event) => {
 });
 attachButton.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => { chooseFiles(fileInput.files); fileInput.value = ""; });
-composerWrap.addEventListener("dragover", (event) => { event.preventDefault(); composerWrap.classList.add("dragging"); });
-composerWrap.addEventListener("dragleave", (event) => { if (!composerWrap.contains(event.relatedTarget)) composerWrap.classList.remove("dragging"); });
-composerWrap.addEventListener("drop", (event) => { event.preventDefault(); composerWrap.classList.remove("dragging"); chooseFiles(event.dataTransfer.files); });
+window.addEventListener("dragenter", (event) => {
+  if (!event.dataTransfer?.types?.includes("Files")) return;
+  event.preventDefault();
+  dragDepth += 1;
+  showDropOverlay();
+});
+window.addEventListener("dragover", (event) => {
+  if (!event.dataTransfer?.types?.includes("Files")) return;
+  event.preventDefault();
+  showDropOverlay();
+});
+window.addEventListener("dragleave", (event) => {
+  if (!event.dataTransfer?.types?.includes("Files")) return;
+  event.preventDefault();
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) hideDropOverlay();
+});
+window.addEventListener("drop", (event) => {
+  if (!event.dataTransfer?.files?.length) return;
+  event.preventDefault();
+  chooseFiles(event.dataTransfer.files);
+  hideDropOverlay();
+});
 
 applyTheme(localStorage.getItem("chat-theme") || "light");
 updateProfile();

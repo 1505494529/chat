@@ -101,6 +101,22 @@ wss.on("connection", (client) => {
       return;
     }
 
+    if (payload.type === "delete") {
+      const messageId = String(payload.messageId || "");
+      const index = group.history.findIndex((message) => message.id === messageId);
+      if (index < 0) {
+        error(client, "这条消息已经不存在了");
+        return;
+      }
+      if (group.history[index].sessionId !== client.sessionId) {
+        error(client, "只能删除自己发送的消息");
+        return;
+      }
+      group.history.splice(index, 1);
+      broadcast({ type: "deleted", messageId });
+      return;
+    }
+
     if (payload.type === "message") {
       const kind = ["text", "image", "file"].includes(payload.kind) ? payload.kind : "text";
       const text = String(payload.text || "").trim().slice(0, 4000);
