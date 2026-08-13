@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f6f5fb" />
     <title>聊天</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="chat-card">
@@ -16,10 +16,10 @@
         </div>
         <div class="topbar-right">
           <div class="theme-picker">
-            <button class="icon-button" id="themeButton" aria-label="切换样式" aria-expanded="false">◐</button>
+            <button class="icon-button" id="themeButton" aria-label="切换样式" aria-expanded="false">◌</button>
             <div class="theme-menu hidden" id="themeMenu">
               <button class="theme-option" data-theme-choice="light"><span class="theme-swatch swatch-light"></span><span>清透</span></button>
-              <button class="theme-option" data-theme-choice="dark"><span class="theme-swatch swatch-dark"></span><span>夜墨</span></button>
+              <button class="theme-option" data-theme-choice="dark"><span class="theme-swatch swatch-dark"></span><span>夜幕</span></button>
               <button class="theme-option" data-theme-choice="cream"><span class="theme-swatch swatch-cream"></span><span>纸张</span></button>
               <button class="theme-option" data-theme-choice="mint"><span class="theme-swatch swatch-mint"></span><span>薄荷</span></button>
               <button class="theme-option" data-theme-choice="ocean"><span class="theme-swatch swatch-ocean"></span><span>海盐</span></button>
@@ -47,21 +47,24 @@
       </header>
 
       <section class="messages" id="messages" aria-live="polite"></section>
+      <section class="p2p-transfers hidden" id="p2pTransfers" aria-live="polite"></section>
 
       <section class="composer-wrap">
         <div class="drop-hint" id="dropHint">松开即可发送</div>
         <div class="attachment-preview hidden" id="attachmentPreview"></div>
         <div class="composer">
-          <button class="attach-button" id="attachButton" title="发送图片或文件">＋</button>
+          <button class="attach-button" id="attachButton" title="发送图片或文件" aria-label="发送图片或文件">＋</button>
+          <button class="p2p-button" id="p2pButton" title="点对点传输大文件" aria-label="点对点传输大文件">P2P</button>
           <input type="file" id="fileInput" hidden />
+          <input type="file" id="p2pFileInput" hidden />
           <textarea id="messageInput" rows="1" placeholder="输入消息…"></textarea>
-          <button class="send-button" id="sendButton" aria-label="发送">↗</button>
+          <button class="send-button" id="sendButton" aria-label="发送">↑</button>
         </div>
       </section>
     </main>
 
     <div class="drop-overlay" id="dropOverlay" aria-hidden="true">
-      <div class="drop-panel"><span class="drop-glyph">↓</span><strong>松开即可发送</strong><small>图片和文件都支持，单个最大 8MB</small></div>
+      <div class="drop-panel"><span class="drop-glyph">↑</span><strong>松开即可发送</strong><small>普通图片和文件走云端；大文件请使用 P2P 按钮</small></div>
     </div>
 
     <div class="modal-backdrop hidden" id="nicknameModal">
@@ -69,13 +72,14 @@
         <button class="modal-close" id="closeModalButton" aria-label="关闭">×</button>
         <div class="avatar modal-avatar avatar-me" id="modalAvatar">访客</div>
         <h2 id="nicknameTitle">修改昵称</h2>
-        <p class="device-label" id="deviceLabel">设备 ID · 加载中</p>
+        <p class="device-label" id="deviceLabel">匿名设备 · 加载中</p>
         <input class="nickname-input" id="nicknameInput" maxlength="24" autocomplete="off" />
         <button class="save-button" id="saveNicknameButton">保存</button>
       </div>
     </div>
 
     <div class="toast" id="toast" role="status"></div>
-    <script src="/app.js" type="module"></script>
+    <script src="./config.js"></script>
+    <script src="./app.js" type="module"></script>
   </body>
 </html>

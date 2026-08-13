@@ -4,11 +4,15 @@
   "private": true,
   "description": "A login-free, URL-based room for messages, images, and files.",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
     "ws": "^8.18.0"
   }
 }
