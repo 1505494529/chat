@@ -1,0 +1,14 @@
+{
+  "name": "share-room",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A login-free, URL-based room for messages, images, and files.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
