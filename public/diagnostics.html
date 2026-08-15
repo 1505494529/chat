@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f1eff7" />
+    <title>网络诊断</title>
+    <link rel="stylesheet" href="./diagnostics.css" />
+  </head>
+  <body>
+    <main class="diagnostics-shell">
+      <section class="diagnostics-card">
+        <header class="diagnostics-header">
+          <div class="diagnostics-title">
+            <span class="diagnostics-mark" aria-hidden="true">⌁</span>
+            <div>
+              <h1>网络诊断</h1>
+              <p class="subtitle">检查手机和电脑之间能否建立 P2P 直连</p>
+            </div>
+          </div>
+          <a class="back-link" href="./">返回聊天</a>
+        </header>
+
+        <div class="diagnostics-main">
+          <p class="instructions">请在手机和电脑上都打开此页面，并分别点击“开始诊断”。两台设备会通过 Supabase Realtime 交换一次 WebRTC 测试信令，不会上传文件。</p>
+          <div class="diagnostics-actions">
+            <button class="primary-button" id="runButton">开始诊断</button>
+            <button class="secondary-button" id="copyButton" disabled>复制诊断结果</button>
+          </div>
+
+          <div class="diagnostics-status" id="overallStatus">
+            <span class="status-dot" id="overallDot"></span>
+            <span id="overallText">等待开始</span>
+          </div>
+
+          <section class="check-grid" id="checkGrid" aria-live="polite"></section>
+
+          <section class="peer-panel">
+            <strong>双端测试</strong>
+            <small id="peerState">尚未开始。请让手机和电脑各点击一次“开始诊断”。</small>
+          </section>
+
+          <section class="report">
+            <h2>诊断日志</h2>
+            <pre class="event-log" id="eventLog">等待开始…</pre>
+          </section>
+        </div>
+      </section>
+    </main>
+    <script src="./config.js"></script>
+    <script src="./diagnostics.js" type="module"></script>
+  </body>
+</html>

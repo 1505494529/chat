@@ -48,6 +48,9 @@ const P2P_BUFFER_LIMIT = 4 * 1024 * 1024;
 
 let user = null;
 let deviceId = localStorage.getItem("chat-device-id") || "";
+// 聊天身份按设备保持；P2P 身份按标签页区分，避免同一浏览器开两个标签页时互相忽略。
+let peerId = sessionStorage.getItem("chat-peer-id") || crypto.randomUUID();
+sessionStorage.setItem("chat-peer-id", peerId);
 let nickname = localStorage.getItem("chat-nickname") || "访客";
 let color = localStorage.getItem("chat-color") || pickColor(deviceId || nickname);
 let channel = null;
@@ -632,7 +635,7 @@ async function startP2PTransfer(file) {
     showToast("当前浏览器不支持 P2P");
     return;
   }
-  if (!channel || !deviceId) {
+  if (!channel || !peerId) {
     showToast("连接尚未建立，请稍候再试");
     return;
   }
@@ -640,7 +643,7 @@ async function startP2PTransfer(file) {
   const transfer = {
     id: crypto.randomUUID(),
     direction: "outgoing",
-    senderId: deviceId,
+    senderId: peerId,
     file,
     fileName: file.name,
     mime: file.type || "application/octet-stream",
@@ -665,7 +668,7 @@ async function startP2PTransfer(file) {
     await waitForIceGatheringComplete(transfer.pc);
     await sendP2PSignal("p2p-offer", {
       transferId: transfer.id,
-      senderId: deviceId,
+      senderId: peerId,
       senderNickname: nickname,
       fileName: transfer.fileName,
       mime: transfer.mime,
@@ -730,7 +733,7 @@ function attachIncomingDataChannel(transfer, dataChannel) {
         transfer.transferred = transfer.size;
         transfer.status = "complete";
         renderP2PTransfers();
-        await sendP2PSignal("p2p-complete", { transferId: transfer.id, receiverId: deviceId });
+        await sendP2PSignal("p2p-complete", { transferId: transfer.id, receiverId: peerId });
         showToast(`${transfer.fileName} 已接收，可保存`);
       }
       return;
@@ -746,10 +749,10 @@ function attachIncomingDataChannel(transfer, dataChannel) {
 async function acceptP2PTransfer(transfer) {
   if (transfer.status !== "waiting") return;
   transfer.status = "claiming";
-  transfer.receiverId = deviceId;
+  transfer.receiverId = peerId;
   renderP2PTransfers();
   try {
-    await sendP2PSignal("p2p-claim", { transferId: transfer.id, receiverId: deviceId });
+    await sendP2PSignal("p2p-claim", { transferId: transfer.id, receiverId: peerId });
     transfer.pc = new RTCPeerConnection({ iceServers });
     watchPeerConnection(transfer);
     transfer.pc.addEventListener("datachannel", ({ channel: dataChannel }) => attachIncomingDataChannel(transfer, dataChannel));
@@ -760,7 +763,7 @@ async function acceptP2PTransfer(transfer) {
     await sendP2PSignal("p2p-answer", {
       transferId: transfer.id,
       senderId: transfer.senderId,
-      receiverId: deviceId,
+      receiverId: peerId,
       answer: { type: transfer.pc.localDescription.type, sdp: transfer.pc.localDescription.sdp },
     });
   } catch (error) {
@@ -784,7 +787,7 @@ async function handleP2PEvent(event, payload) {
   const transfer = p2pTransfers.get(payload.transferId);
 
   if (event === "p2p-offer") {
-    if (payload.senderId === deviceId || transfer) return;
+    if (payload.senderId === peerId || transfer) return;
     p2pTransfers.set(payload.transferId, {
       id: payload.transferId,
       direction: "incoming",
@@ -814,7 +817,7 @@ async function handleP2PEvent(event, payload) {
       transfer.receiverId = payload.receiverId;
       transfer.status = "claiming";
       renderP2PTransfers();
-    } else if (transfer.status === "waiting" && payload.receiverId !== deviceId) {
+    } else if (transfer.status === "waiting" && payload.receiverId !== peerId) {
       transfer.status = "cancelled";
       renderP2PTransfers();
     }

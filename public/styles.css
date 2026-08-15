@@ -136,6 +136,8 @@ button { border: 0; cursor: pointer; }
 .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: #c6c3ce; transition: background .2s, box-shadow .2s; }
 .connection-dot.online { background: #64c89b; box-shadow: 0 0 0 3px color-mix(in srgb, #64c89b 16%, transparent); }
 .topbar-right { gap: 16px; }
+.diagnostic-link { color: var(--muted); font-size: 11px; text-decoration: none; transition: color .2s; }
+.diagnostic-link:hover { color: var(--accent); }
 .theme-picker { position: relative; }
 .icon-button { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; color: var(--muted); background: transparent; font-size: 18px; transition: color .2s, background .2s, transform .2s; }
 .icon-button:hover, .icon-button[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); transform: rotate(18deg); }
