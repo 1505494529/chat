@@ -226,6 +226,7 @@ function failTest(message) {
   setOverall("诊断失败：未建立 WebRTC 通道", "bad");
   setPeer(message, "bad");
   log(`诊断失败：${message}`);
+  closePeerConnection();
   copyButton.disabled = false;
   runButton.disabled = false;
 }
@@ -395,9 +396,11 @@ async function runDiagnostics() {
       sendSignal("diag-hello", { from: peerId, label: peerLabel }).catch((error) => log(`重复 hello 发送失败：${error.message}`));
       if (remotePeer) maybeStartOffer();
     }, 1200);
-    timeoutTimer = setTimeout(() => failTest(remotePeer
-      ? "等待超时：双方已发现，但 offer/answer 或 ICE 协商未完成，请重试并查看协商日志。"
-      : "等待超时：请确认手机和电脑都打开了诊断页，并且 Supabase Realtime 正常。"), 35000);
+    timeoutTimer = setTimeout(() => failTest(remotePeer && peerConnection
+      ? "信令已成功，但 ICE 未建立通道：优先检查 Wi‑Fi 客户端隔离、电脑防火墙，或配置 TURN。"
+      : remotePeer
+        ? "双方已发现，但 offer/answer 尚未完成，请重试并查看协商日志。"
+        : "等待超时：请确认手机和电脑都打开了诊断页，并且 Supabase Realtime 正常。"), 35000);
   } catch (error) {
     failTest(`诊断信令失败：${error.message}`);
   }
