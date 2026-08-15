@@ -29,8 +29,11 @@ let role = "";
 let offerSent = false;
 let running = false;
 let timeoutTimer = null;
+let helloTimer = null;
 let lastPath = "";
 let localCandidateTypes = [];
+let offerStarting = false;
+let helloAttempts = 0;
 
 function applySavedTheme() {
   const theme = localStorage.getItem("chat-theme") || "light";
@@ -203,6 +206,7 @@ async function finishSuccess() {
   if (!running) return;
   running = false;
   clearTimeout(timeoutTimer);
+  clearInterval(helloTimer);
   const path = describePath(await selectedCandidatePair());
   lastPath = path.label;
   setCheck("path", "最终连接路径", path.label, path.status);
@@ -217,6 +221,7 @@ function failTest(message) {
   if (!running) return;
   running = false;
   clearTimeout(timeoutTimer);
+  clearInterval(helloTimer);
   setCheck("path", "最终连接路径", message, "bad");
   setOverall("诊断失败：未建立 WebRTC 通道", "bad");
   setPeer(message, "bad");
@@ -260,15 +265,19 @@ function watchPeerConnection() {
 }
 
 async function createOffer() {
-  if (!running || offerSent || !remotePeer) return;
+  if (!running || offerSent || !remotePeer || peerConnection) return;
   role = "offerer";
   offerSent = true;
+  log("本端被选为发起方，开始创建 offer。");
   peerConnection = new RTCPeerConnection({ iceServers });
   watchPeerConnection();
   installDataChannel(peerConnection.createDataChannel("diagnostic", { ordered: true }));
   const offer = await peerConnection.createOffer();
+  log("offer 已创建，正在设置本地描述。");
   await peerConnection.setLocalDescription(offer);
+  log(`本地描述已设置，ICE 状态：${peerConnection.iceGatheringState}，等待候选地址…`);
   await waitForIceGatheringComplete(peerConnection);
+  log(`ICE 候选收集结束：${peerConnection.iceGatheringState}。`);
   await sendSignal("diag-offer", { from: peerId, to: remotePeer.id, label: peerLabel, sdp: peerConnection.localDescription });
   setPeer(`已向${remotePeer.label || "另一端"}发送连接请求，等待应答…`);
   log(`已发送 offer，目标：${remotePeer.label || "另一端"}。`);
@@ -277,30 +286,55 @@ async function createOffer() {
 async function createAnswer(payload) {
   if (!running || peerConnection) return;
   role = "answerer";
+  log("收到 offer，本端被选为应答方。");
   remotePeer = { id: payload.from, label: payload.label };
   peerConnection = new RTCPeerConnection({ iceServers });
   watchPeerConnection();
   peerConnection.addEventListener("datachannel", ({ channel: nextChannel }) => installDataChannel(nextChannel));
   await peerConnection.setRemoteDescription(payload.sdp);
+  log("远端描述已设置，正在创建 answer。");
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
+  log(`answer 本地描述已设置，ICE 状态：${peerConnection.iceGatheringState}，等待候选地址…`);
   await waitForIceGatheringComplete(peerConnection);
+  log(`answer ICE 候选收集结束：${peerConnection.iceGatheringState}。`);
   await sendSignal("diag-answer", { from: peerId, to: payload.from, label: peerLabel, sdp: peerConnection.localDescription });
   setPeer(`已向${remotePeer.label || "另一端"}返回应答，等待通道打开…`);
   log("已发送 answer。");
+}
+
+function shouldInitiate(remoteId) {
+  return peerId.localeCompare(String(remoteId)) < 0;
+}
+
+async function maybeStartOffer() {
+  if (!running || offerSent || offerStarting || peerConnection || !remotePeer) return;
+  const initiator = shouldInitiate(remotePeer.id);
+  log(`协商选举：${initiator ? "本端发起 offer" : "等待对方发起 offer"}。`);
+  if (!initiator) return;
+  offerStarting = true;
+  try {
+    await createOffer();
+  } catch (error) {
+    offerSent = false;
+    failTest(`创建 offer 失败：${error.message}`);
+  } finally {
+    offerStarting = false;
+  }
 }
 
 async function handleSignal(event, payload) {
   if (!running || !payload || payload.from === peerId) return;
   if (event === "diag-hello") {
     if (remotePeer && remotePeer.id !== payload.from) return;
+    const isNewPeer = !remotePeer;
     remotePeer = { id: payload.from, label: payload.label };
-    setPeer(`发现${payload.label || "另一端"}，正在协商…`);
-    log(`发现另一端：${payload.label || "未知设备"}。`);
-    await wait(450);
-    if (peerId < payload.from) {
-      try { await createOffer(); } catch (error) { failTest(`创建 offer 失败：${error.message}`); }
+    if (isNewPeer) {
+      setPeer(`发现${payload.label || "另一端"}，正在协商…`);
+      log(`发现另一端：${payload.label || "未知设备"}。`);
     }
+    await wait(450);
+    await maybeStartOffer();
     return;
   }
   if (payload.to !== peerId) return;
@@ -351,7 +385,19 @@ async function runDiagnostics() {
     setPeer(`当前设备：${peerLabel}。请在另一台设备也点击“开始诊断”。`, "warn");
     await sendSignal("diag-hello", { from: peerId, label: peerLabel });
     log("已广播 hello，等待另一端。");
-    timeoutTimer = setTimeout(() => failTest("等待超时：请确认手机和电脑都打开了诊断页，并且 Supabase Realtime 正常。"), 35000);
+    helloAttempts = 0;
+    helloTimer = setInterval(() => {
+      helloAttempts += 1;
+      if (!running || offerSent || peerConnection || helloAttempts > 6) {
+        clearInterval(helloTimer);
+        return;
+      }
+      sendSignal("diag-hello", { from: peerId, label: peerLabel }).catch((error) => log(`重复 hello 发送失败：${error.message}`));
+      if (remotePeer) maybeStartOffer();
+    }, 1200);
+    timeoutTimer = setTimeout(() => failTest(remotePeer
+      ? "等待超时：双方已发现，但 offer/answer 或 ICE 协商未完成，请重试并查看协商日志。"
+      : "等待超时：请确认手机和电脑都打开了诊断页，并且 Supabase Realtime 正常。"), 35000);
   } catch (error) {
     failTest(`诊断信令失败：${error.message}`);
   }
@@ -377,6 +423,7 @@ runButton.addEventListener("click", runDiagnostics);
 copyButton.addEventListener("click", copyReport);
 window.addEventListener("beforeunload", () => {
   clearTimeout(timeoutTimer);
+  clearInterval(helloTimer);
   closePeerConnection();
   channel?.unsubscribe();
 });
