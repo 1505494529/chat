@@ -213,6 +213,8 @@ async function finishSuccess() {
   setOverall(`诊断成功：${path.label}`, "good");
   setPeer(`测试数据包已往返成功。${path.detail}`, "good");
   log(`诊断成功：${path.detail}`);
+  channel?.unsubscribe();
+  channel = null;
   copyButton.disabled = false;
   runButton.disabled = false;
 }
@@ -227,6 +229,8 @@ function failTest(message) {
   setPeer(message, "bad");
   log(`诊断失败：${message}`);
   closePeerConnection();
+  channel?.unsubscribe();
+  channel = null;
   copyButton.disabled = false;
   runButton.disabled = false;
 }
@@ -235,18 +239,27 @@ function installDataChannel(nextChannel) {
   dataChannel = nextChannel;
   dataChannel.binaryType = "arraybuffer";
   dataChannel.addEventListener("open", () => {
-    log("DataChannel 已打开，发送测试数据包。");
+    log("DataChannel 已打开，准备发送测试数据包。");
     setPeer("WebRTC 通道已打开，正在验证数据往返…", "good");
-    if (role === "offerer") dataChannel.send(JSON.stringify({ type: "diagnostic-ping", sentAt: Date.now() }));
+    // 两端都发送一次 ping，避免移动端刚打开通道时单向首包丢失。
+    setTimeout(() => {
+      if (dataChannel !== nextChannel || nextChannel.readyState !== "open") return;
+      log("发送 diagnostic ping。");
+      nextChannel.send(JSON.stringify({ type: "diagnostic-ping", sentAt: Date.now(), from: peerId }));
+    }, 250);
   });
   dataChannel.addEventListener("message", ({ data }) => {
     if (typeof data !== "string") return;
     try {
       const packet = JSON.parse(data);
       if (packet.type === "diagnostic-ping" && dataChannel.readyState === "open") {
+        log("收到 diagnostic ping，返回 pong。");
         dataChannel.send(JSON.stringify({ type: "diagnostic-pong", sentAt: packet.sentAt, receivedAt: Date.now() }));
       }
-      if (packet.type === "diagnostic-pong") finishSuccess();
+      if (packet.type === "diagnostic-pong") {
+        log("收到 diagnostic pong，数据往返成功。");
+        finishSuccess();
+      }
     } catch {
       log("收到无法解析的测试数据。");
     }
